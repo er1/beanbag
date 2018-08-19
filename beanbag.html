@@ -1,0 +1,354 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en">
+<head>
+	<title>BeanBag</title>
+	<meta charset="utf-8" />
+	<meta name="viewport" content="width=device-width; initial-scale=1.0; maximum-scale=1.0; user-scalable=no;"/>
+	<meta name="apple-mobile-web-app-capable" content="yes"/>
+	<style type="text/css">
+body {
+	background-color: #333;
+	background-position: center;
+	background-size: cover;
+	background-image: url(bliss.jpg);
+	margin: 0;
+	min-height: 100vh;
+	-webkit-touch-callout: none;
+	-webkit-user-select: none;
+	-khtml-user-select: none;
+	-moz-user-select: none;
+	-ms-user-select: none;
+	user-select: none;
+}
+	</style>
+	<script type="text/javascript">
+(function (window, document, undefined) {
+	"use strict";
+
+	function lerp(a, b, f) {
+		return (b - a) * f + a;
+	}
+
+	function randfrange(a, b) {
+		return lerp(a, b, Math.random());
+	} 
+
+	function flip() {
+		return Math.random() < 0.5;
+	}
+
+	var NUM_BEANS = 40;
+	var MIN_SCALE = 0.2;
+	var MAX_SCALE = 1.0;
+	var MAX_RADIUS = 576 * MAX_SCALE;
+
+	var BEANS = [
+		"redbean0.png",
+		"redbean0.png",
+		"redbean0.png",
+		"redbean0.png",
+		"redbean1.png",
+		"redbean1.png",
+		"redbean2.png",
+		"redbean2.png",
+		"redbeandroid.png",
+		];
+
+	var COLORS = [
+		[0.0,0.8,0.0],
+		[0.8,0.0,0.0],
+		[0.0,0.0,0.8],
+		[1.0,1.0,0.0],
+		[1.0,0.5,0.0],
+		[0.0,0.8,1.0],
+		[1.0,0.0,0.5],
+		[0.5,0.0,1.0],
+		[1.0,0.5,0.5],
+		[0.5,0.5,1.0],
+		[11/16,3/4,13/16],
+		[13/15,13/15,13/15],
+		[0.2,0.2,0.2],
+		];
+
+	var beanpairs = [];
+
+	var colorbeans = [];
+
+	var beans = [];
+	var images = [];
+	var mPreviousTime;
+
+	var i, j;
+	for (i = 0; i < BEANS.length; i++) {
+		for (j = 0; j < COLORS.length; j++) {
+			beanpairs.push([BEANS[i], COLORS[j]]);
+		}
+	}
+
+	window.onload = function () {
+		transformbean();
+	}
+
+	function transformbean() {
+		if (beanpairs.length == 0) {
+			return startbeans();
+		}
+
+		var beanpair = beanpairs.shift();
+		var bean = beanpair[0];
+		var color = beanpair[1];
+
+		var canvas = document.createElement('canvas');
+		// document.body.appendChild(canvas);
+		var bean_img = new Image();
+		bean_img.onload = function () {
+			canvas.width = bean_img.width;
+			canvas.height = bean_img.height;
+			var ctx = canvas.getContext('2d');
+			ctx.clearRect(0, 0, canvas.width, canvas.height);
+			ctx.drawImage(bean_img, 0, 0);
+
+			var imagedata = ctx.getImageData(0, 0, canvas.width, canvas.height);
+			var i, t;
+			for (i = 0; i < imagedata.data.length; i+= 4) {
+				var t = imagedata.data[i];
+				var s = imagedata.data[i + 2]
+				imagedata.data[i + 0] = s + t * color[0];
+				imagedata.data[i + 1] += t * color[1];
+				imagedata.data[i + 2] += t * color[2];
+			}
+			ctx.putImageData(imagedata, 0, 0);
+
+			if (canvas.toBlob) {
+				canvas.toBlob(function (blob) {
+					colorbeans.push(URL.createObjectURL(blob));
+					transformbean();
+				});
+			} else {
+				colorbeans.push(canvas.toDataURL());
+				transformbean();
+			}
+		}
+		bean_img.src = bean;
+
+	}
+
+	function startbeans() {
+		var i;
+
+		MAX_SCALE = Math.min(MAX_SCALE, Math.min(window.innerWidth, window.innerHeight) / 256 / 4);
+
+		for (i = 0; i < NUM_BEANS; i++) {
+			var nv = Bean();
+			var img = document.body.appendChild(new Image());
+			var z = i / NUM_BEANS;
+
+			images[i] = img;
+			beans[i] = nv;
+			nv.init(z);
+
+			nv.picker(function (img) {
+				return function pickBean() {
+					img.src = colorbeans[Math.floor(Math.random() * colorbeans.length)];
+				};
+			}(img));
+
+			img.bean = true;
+			img.start = nv.start;
+			img.end = nv.end;
+			img.move = nv.move;
+
+			img.style.position = 'fixed';
+			img.style['border-radius'] = '45%';
+			img.src = colorbeans[(i * 65537) % colorbeans.length];
+		}
+
+		mPreviousTime = performance && performance.now() || new Date().getTime();
+
+		function animate(loopfunc) {
+			setIntervan(loopfunc, 50);
+		}
+
+		var animate = function(loopfunc) {
+			setInterval(loopfunc, 50);
+		}
+
+		if (window.requestAnimationFrame) {
+			animate = function (loopfunc) {
+				function loop() {
+					loopfunc();
+					requestAnimationFrame(loop);
+				}
+				loop();
+			}
+		}
+
+		animate(function () {
+			var i;
+			var currentTime = performance && performance.now() || new Date().getTime();
+			var deltaTime = currentTime - mPreviousTime;
+			mPreviousTime = currentTime;
+
+			for (i = 0; i < beans.length; i++) {
+				var nv = beans[i];
+				nv.update(deltaTime / 1000.0);
+				nv.transform(images[i]);
+			}
+		});
+
+		document.body.addEventListener("touchstart", function (e) {
+			if (!e.target.bean) return;
+				e.target.start(e.targetTouches[0].pageX, e.targetTouches[0].pageY);
+			e.preventDefault();
+		}, false);
+
+		document.body.addEventListener("touchend", function (e) {
+			if (!e.target.bean) return;
+				e.target.end();
+			e.preventDefault();
+		}, false);
+
+		document.body.addEventListener("touchcancel", function (e) {
+			if (!e.target.bean) return;
+				e.target.end();
+			e.preventDefault();
+		}, false);
+
+		document.body.addEventListener("touchmove", function (e) {
+			if (!e.target.bean) return;
+				e.target.move(e.targetTouches[0].pageX, e.targetTouches[0].pageY);
+			e.preventDefault();
+		}, false);
+	};
+
+	var Bean = function () {
+		var grabx_offset = 0.0, graby_offset = 0.0;
+
+		var x = 0.0, y = 0.0, a = 0.0;
+		var va = 0.0;
+		var vx = 0.0, vy = 0.0;
+		var r = 0.0;
+		var z = 0.0;
+		var h = 256, w = 256;
+		var grabbed = false;
+		var grabx = 0.0, graby = 0.0;
+
+		var scale = 1.0;
+
+		var pickBean = function () {};
+
+		function reset() {
+			pickBean();
+
+			scale = lerp(MIN_SCALE, MAX_SCALE, z);
+
+			r = 0.3 * Math.max(h, w) * scale;
+
+			a = randfrange(0, 360);
+			va = randfrange(-30, 30);
+
+			vx = randfrange(-40, 40) * z;
+			vy = randfrange(-40, 40) * z;
+
+			var boardh = window.innerHeight;
+			var boardw = window.innerWidth;
+
+			if (flip()) {
+				x = (vx < 0 ? boardw + 2 * r : -r * 4);
+				y = (randfrange(0, boardh - 3 * r) * 0.5 + ((vy < 0) ? boardh * 0.5 : 0));
+			} else {
+				y = (vy < 0 ? boardh + 2 * r : -r * 4);
+				x = (randfrange(0, boardw - 3 * r) * 0.5 + ((vx < 0) ? boardw * 0.5 : 0));
+			}
+		}
+
+		function init(_z) {
+			z = _z;
+			z *= z;
+			reset();
+			x = randfrange(0, window.innerWidth);
+			y = randfrange(0, window.innerHeight);
+		}
+
+		function update(dt) {
+			if (grabbed) {
+				vx = (vx * 0.75) + ((grabx - x) / dt) * 0.25;
+				x = grabx;
+				vy = (vy * 0.75) + ((graby - y) / dt) * 0.25;
+				y = graby;
+			} else {
+				x = (x + vx * dt);
+				y = (y + vy * dt);
+				a = (a + va * dt);
+			}
+			if (x < -MAX_RADIUS
+					|| x > window.innerWidth + MAX_RADIUS
+					|| y < -MAX_RADIUS
+					|| y > window.innerHeight + MAX_RADIUS) {
+				reset();
+			}
+		}
+
+		function picker(f) {
+			pickBean = f;
+		}
+
+		function transform(img) {
+			var s = img.style;
+			var t = 'rotate(' + a + 'deg) scale(' + scale + ')';
+			s.transform = t;
+			s['-webkit-transform'] = t;
+			s.left = x - w/2 + 'px';
+			s.top = y - h/2 + 'px';
+		}
+
+		function start(_x, _y) {
+			grabbed = true;
+			grabx_offset = _x - x;
+			graby_offset = _y - y;
+			va = 0.0;
+			move(_x, _y);
+		}
+
+		function move(_x, _y) {
+			grabx = _x - grabx_offset;
+			graby = _y - graby_offset;
+		}
+
+		function end() {
+			grabbed = false;
+			va = (flip()?1:-1) * Math.min(Math.max(Math.sqrt(vx * vx + vy * vy) * 0.33, 0), 1080.0) * randfrange(0.5, 1.0);
+		}
+
+		return { init: init, transform: transform, update: update, picker: picker,
+			start: start, move: move, end: end};
+	}
+
+	window.movetarget = undefined;
+	window.addEventListener("mousedown", function (e) {
+		if (!e.target.bean)
+			return;
+		e.target.start(e.pageX, e.pageY);
+		window.movetarget = e.target;
+		e.preventDefault();
+	}, false);
+	window.addEventListener("mousemove", function (e) {
+		if (window.movetarget) {
+			window.movetarget.move(e.pageX, e.pageY);
+		}
+		e.preventDefault();
+	}, false);
+	window.addEventListener("mouseup", function (e) {
+		if (window.movetarget) {
+			window.movetarget.end();
+			window.movetarget = undefined;
+		}
+		e.preventDefault();
+	}, false);
+
+}(window, document));
+	</script>
+</head>
+<body>
+</body>
+</html>
